@@ -1136,6 +1136,14 @@ lut_get (const gchar *path)
 
 /* applying the LUT ----------------------------------------------------- */
 
+/* the loop is made for each combination of options below; the helpers must
+ * be inlined into it for that */
+#if defined (__GNUC__)
+#define LUT_INLINE static inline __attribute__ ((always_inline))
+#else
+#define LUT_INLINE static inline
+#endif
+
 typedef struct
 {
   const LutStage *s1, *s3;
@@ -1150,7 +1158,7 @@ typedef struct
 
 /* the position of x on an axis of n points, in points: clamped to the
  * limits, NaN at the lowest point */
-static inline gfloat
+LUT_INLINE gfloat
 coordinate (gfloat x,
             gfloat min,
             gfloat scale,
@@ -1165,7 +1173,7 @@ coordinate (gfloat x,
 }
 
 /* the same on an uneven grid of input values */
-static inline gfloat
+LUT_INLINE gfloat
 mesh_coordinate (const gfloat *mesh,
                  gint          n,
                  gfloat        x,
@@ -1191,7 +1199,7 @@ mesh_coordinate (const gfloat *mesh,
 
 /* the cell of coordinate t: 0 to n - 2; outside the table, t - cell is
  * below 0 or above 1 and the edge cell is extended */
-static inline gint
+LUT_INLINE gint
 cell (gfloat t,
       gint   n)
 {
@@ -1201,7 +1209,7 @@ cell (gfloat t,
   return i < n - 2 ? i : n - 2;
 }
 
-static inline void
+LUT_INLINE void
 apply_1d (const LutStage *s,
           gfloat          lo,
           gfloat          hi,
@@ -1229,16 +1237,17 @@ apply_1d (const LutStage *s,
  * the loop free of hard to predict jumps. */
 #define SORT2(fa, oa, fb, ob)                          \
   G_STMT_START {                                       \
-    const gboolean swap_ = fa < fb;                    \
-    const gfloat   f_    = swap_ ? fb : fa;            \
-    const gint     o_    = swap_ ? ob : oa;            \
-    fb = swap_ ? fa : fb;                              \
-    ob = swap_ ? oa : ob;                              \
-    fa = f_;                                           \
-    oa = o_;                                           \
+    const gint   swap_ = -(gint) (fa < fb);            \
+    const gint   x_    = (oa ^ ob) & swap_;            \
+    const gfloat hi_   = fa > fb ? fa : fb;            \
+    const gfloat lo_   = fa > fb ? fb : fa;            \
+    oa ^= x_;                                          \
+    ob ^= x_;                                          \
+    fa  = hi_;                                         \
+    fb  = lo_;                                         \
   } G_STMT_END
 
-static inline void
+LUT_INLINE void
 tetrahedral (const LutStage *s,
              const gfloat   *t,
              gfloat         *v)
@@ -1265,7 +1274,7 @@ tetrahedral (const LutStage *s,
            f2 * (c3[c] - c2[c]);
 }
 
-static inline void
+LUT_INLINE void
 trilinear (const LutStage *s,
            const gfloat   *t,
            gfloat         *v)
@@ -1293,7 +1302,7 @@ trilinear (const LutStage *s,
 
 /* the loop, made for each combination of stages and options so that the
  * choices are not made per pixel */
-static inline void
+LUT_INLINE void
 run_pixels (const Run    *r,
             const gfloat *in,
             gfloat       *out,
