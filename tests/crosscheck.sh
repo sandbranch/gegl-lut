@@ -7,7 +7,7 @@
 # The operation runs isolated from your folders (GIMP_RUN_HOME,
 # tests/output/gimp-home: see gimp-build.sh).
 # Before and after, it lists your folders of GIMP and the other apps
-# (gimp-plugin-devtools/snapshot.sh, skipped without it) and fails if
+# (gimp-devtools/snapshot.sh, skipped without it) and fails if
 # anything there changed.
 # Exits non-zero if a case fails, 2 if ffmpeg or numpy are missing.
 set -e
@@ -29,7 +29,7 @@ export GIMP_RUN_HOME
 . "$here/isolate.sh"
 snapshot_take "$here/output/snapshot-cross-before.txt"
 
-gimp_build=${GIMP_BUILD:-$top/../gimp-plugin-devtools/gimp-build.sh}
+gimp_build=${GIMP_BUILD:-$top/../gimp-devtools/gimp-build.sh}
 if [ "${GIMP_FLATPAK:-1}" = 1 ] && command -v flatpak >/dev/null 2>&1 &&
    flatpak info org.gimp.GIMP >/dev/null 2>&1; then
   apply="$gimp_build $top $build/lut-apply $build/color-lookup.so"

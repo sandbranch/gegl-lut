@@ -127,7 +127,7 @@ newer).
     ninja -C build install
 
 For the Flatpak version of GIMP, build inside it with
-[gimp-plugin-devtools](https://github.com/sandbranch/gimp-plugin-devtools),
+[gimp-devtools](https://github.com/sandbranch/gimp-devtools),
 which installs into `~/.var/app/org.gimp.GIMP/data/gegl-0.4/plug-ins`:
 
     gimp-build.sh . meson setup build -Dmoduledir=\$GEGL_OPDIR
