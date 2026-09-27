@@ -5,8 +5,14 @@
 # command line. Uses the module from build/ (or $BUILD) and a throwaway
 # GIMP profile in tests/output/gimp-profile (GIMP3_DIRECTORY), so the
 # installed filters and the user's GIMP settings are not touched. The
-# first run takes about a minute (GIMP sets up the new profile). Exits
-# non-zero if a check fails.
+# first run takes about a minute (GIMP sets up the new profile). GIMP
+# and GEGL run isolated from your folders (tests/isolate.sh, with
+# gimp-plugin-devtools/gimp-run.sh if it is there): HOME and the XDG
+# folders inside the Flatpak point into tests/output/gimp-home, so
+# nothing lands in ~/.var/app/org.gimp.GIMP.
+# Before and after, it lists your folders of GIMP and the other apps
+# (gimp-plugin-devtools/snapshot.sh, skipped without it) and fails if
+# anything there changed. Exits non-zero if a check fails.
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 top=$(dirname "$here")
@@ -18,17 +24,24 @@ mod="$here/output/gimp-check-modules"
   { echo "no $build/color-lookup.so: build first (README)" >&2; exit 2; }
 rm -rf "$mod" "$out"
 mkdir -p "$mod" "$out" "$here/output/gimp-profile"
+src=$top
+GIMP_RUN_HOME=${GIMP_RUN_HOME:-$here/output/gimp-home}
+export GIMP_RUN_HOME
+# shellcheck source=SCRIPTDIR/isolate.sh
+. "$here/isolate.sh"
+snapshot_take "$here/output/snapshot-gimp-before.txt"
 # GEGL loads every file in a module folder: only the module
 cp "$build/color-lookup.so" "$mod/"
 
+# run <command...>: in the GIMP Flatpak
 run () {
-  flatpak run --filesystem="$top" \
+  gimp_run --flatpak --filesystem="$top" \
     --env=GIMP3_DIRECTORY="$here/output/gimp-profile" \
     --env=GEGL_PATH="$mod:/app/lib/gegl-0.4" \
-    --env=LUT_CHECK_OUT="$out" "$@"
+    --env=LUT_CHECK_OUT="$out" -- "$@"
 }
 
-run --command=gimp-console-3.2 org.gimp.GIMP --no-interface --no-data --no-fonts \
+run gimp-console-3.2 --no-interface --no-data --no-fonts \
   --batch-interpreter python-fu-eval \
   -b "exec(open('$here/gimp-check.py').read())" --quit 2>&1 |
   grep -E "^(PASS|FAIL)|failed$|Error|Traceback|^  File" || true
@@ -36,13 +49,13 @@ run --command=gimp-console-3.2 org.gimp.GIMP --no-interface --no-data --no-fonts
 
 # the same settings on the gegl command line
 lut="$out/grade-17.cube"
-run --command=gegl org.gimp.GIMP "$out/scene.tif" -o "$out/cli-float_defaults.tif" -- \
+run gegl "$out/scene.tif" -o "$out/cli-float_defaults.tif" -- \
   lut:color-lookup path="$lut"
-run --command=gegl org.gimp.GIMP "$out/scene.tif" -o "$out/cli-float_options.tif" -- \
+run gegl "$out/scene.tif" -o "$out/cli-float_options.tif" -- \
   lut:color-lookup path="$lut" strength=0.6 interpolation=trilinear \
   encoding=linear out-of-range=extrapolate
 
-run --command=python3 org.gimp.GIMP - <<EOF || status=1
+run python3 - <<EOF || status=1
 import array
 import gi
 gi.require_version('Gegl', '0.4')
@@ -74,4 +87,5 @@ for label in ('float_defaults', 'float_options'):
 raise SystemExit(bad)
 EOF
 
+snapshot_check "$here/output/snapshot-gimp-before.txt" "" || status=1
 exit ${status:-0}

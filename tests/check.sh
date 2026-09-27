@@ -9,6 +9,13 @@
 #   tests/check.sh           both builds
 #   tests/check.sh quick     only the usual build
 #
+# The builds and checks run isolated from your folders (GIMP_RUN_HOME,
+# tests/output/gimp-home: see gimp-build.sh), so that nothing lands in
+# ~/.var/app/org.gimp.GIMP.
+# Before and after, it lists your folders of GIMP and the other apps
+# (gimp-plugin-devtools/snapshot.sh, skipped without it) and fails if
+# anything there changed.
+#
 # The build folders are in tests/output. Exits with 1 if anything failed.
 set -e
 
@@ -16,6 +23,12 @@ here=$(cd "$(dirname "$0")" && pwd)
 top=$(dirname "$here")
 out="$here/output"
 mkdir -p "$out"
+src=$top
+GIMP_RUN_HOME=${GIMP_RUN_HOME:-$here/output/gimp-home}
+export GIMP_RUN_HOME
+# shellcheck source=SCRIPTDIR/isolate.sh
+. "$here/isolate.sh"
+snapshot_take "$out/snapshot-check-before.txt"
 
 gimp_build=${GIMP_BUILD:-$top/../gimp-plugin-devtools/gimp-build.sh}
 if [ "${GIMP_FLATPAK:-1}" = 1 ] && command -v flatpak >/dev/null 2>&1 &&
@@ -50,7 +63,10 @@ rm -rf "$out/tmp-check"
 grep -E '^(PASS|FAIL|SKIP)|passed,' "$out/check.log" || true
 grep -qE '^[0-9]+ passed, 0 failed' "$out/check.log" || status=1
 
-[ "$1" = quick ] && exit $status
+if [ "$1" = quick ]; then
+  snapshot_check "$out/snapshot-check-before.txt" "" || status=1
+  exit $status
+fi
 
 echo
 echo "== AddressSanitizer and UndefinedBehaviorSanitizer build"
@@ -110,6 +126,8 @@ if grep -q 'GeglBuffers leaked' "$out/check.log" "$out/check-asan.log"; then
 else
   echo "PASS  no leaked GeglBuffers"
 fi
+
+snapshot_check "$out/snapshot-check-before.txt" "" || status=1
 
 echo
 [ $status = 0 ] && echo "all checks passed" || echo "SOME CHECKS FAILED"
