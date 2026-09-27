@@ -1,0 +1,3 @@
+option('moduledir', type: 'string', value: '',
+  description: 'Folder of GEGL operations, default: the system folder of GEGL. '
+    + 'For a user installation use ~/.local/share/gegl-0.4/plug-ins')
