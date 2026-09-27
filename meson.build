@@ -33,3 +33,14 @@ foreach op, sources : operations
     install_dir: moduledir,
   )}
 endforeach
+
+# numerical checks of the operation: tests/check.sh, or meson test -C build
+check = executable('check', 'tests/check.c',
+  dependencies: [gegl_dep, math_dep],
+  c_args: ['-DGEGL_PLUGINSDIR="@0@"'.format(
+    gegl_dep.get_variable(pkgconfig: 'pluginsdir'))],
+  install: false,
+)
+test('color-lookup', check,
+  args: [modules['color-lookup'], meson.current_source_dir() / 'tests' / 'fixtures'],
+  timeout: 600)
