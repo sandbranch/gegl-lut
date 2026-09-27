@@ -1384,7 +1384,7 @@ static const RunFunc run_funcs[5][2][2] =
 typedef struct
 {
   Lut   *lut;
-  gchar *reported;   /* the error last given to the property, or on its way */
+  gchar *pending;    /* the error on its way to the property, or NULL */
 } State;
 
 static const Lut *
@@ -1470,6 +1470,8 @@ typedef struct
   gchar    *error;
 } ErrorUpdate;
 
+static GMutex error_mutex;
+
 static gboolean
 error_update_idle (gpointer data)
 {
@@ -1478,12 +1480,22 @@ error_update_idle (gpointer data)
 
   if (operation)
     {
-      gchar *current = NULL;
+      GeglProperties *o    = GEGL_PROPERTIES (operation);
+      State          *state;
+      gboolean        mine = FALSE;
 
-      g_object_get (operation, "error", &current, NULL);
-      if (g_strcmp0 (current ? current : "", u->error) != 0)
+      /* only the latest update is made */
+      g_mutex_lock (&error_mutex);
+      state = o->user_data;
+      if (state && state->pending && ! strcmp (state->pending, u->error))
+        {
+          g_clear_pointer (&state->pending, g_free);
+          mine = TRUE;
+        }
+      g_mutex_unlock (&error_mutex);
+
+      if (mine && strcmp (o->error ? o->error : "", u->error) != 0)
         g_object_set (operation, "error", u->error, NULL);
-      g_free (current);
       g_object_unref (operation);
     }
   return G_SOURCE_REMOVE;
@@ -1499,21 +1511,27 @@ error_update_free (gpointer data)
   g_free (u);
 }
 
+/* makes the error property say error, unless it does or will. It is
+ * compared with the property itself, so that a message that someone
+ * cleared (a plug-in that sets all the settings again) comes back */
 static void
 report_error (GeglOperation *operation,
               State         *state,
               const gchar   *error)
 {
-  GeglProperties *o     = GEGL_PROPERTIES (operation);
-  const gchar    *known = state->reported ? state->reported :
-                          o->error ? o->error : "";
+  GeglProperties *o = GEGL_PROPERTIES (operation);
   ErrorUpdate    *u;
 
-  if (strcmp (known, error) == 0)
-    return;
-
-  g_free (state->reported);
-  state->reported = g_strdup (error);
+  g_mutex_lock (&error_mutex);
+  if (strcmp (state->pending ? state->pending : o->error ? o->error : "",
+              error) == 0)
+    {
+      g_mutex_unlock (&error_mutex);
+      return;
+    }
+  g_free (state->pending);
+  state->pending = g_strdup (error);
+  g_mutex_unlock (&error_mutex);
 
   u = g_new0 (ErrorUpdate, 1);
   g_weak_ref_init (&u->operation, operation);
@@ -1592,7 +1610,7 @@ finalize (GObject *object)
       State *state = o->user_data;
 
       lut_unref (state->lut);
-      g_free (state->reported);
+      g_free (state->pending);
       g_free (state);
       o->user_data = NULL;
     }

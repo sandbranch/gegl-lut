@@ -2084,6 +2084,52 @@ test_bad_files (void)
   }
 }
 
+/* the error property: set from the main loop, back if someone clears it,
+ * empty again once the file is good */
+static void
+test_error_property (void)
+{
+  gchar      *path = tmp_path ("error-prop.cube");
+  GeglBuffer *in   = gegl_buffer_new (GEGL_RECTANGLE (0, 0, 4, 1), babl_format (WORK));
+  GeglNode   *g    = gegl_node_new ();
+  GeglNode   *src  = gegl_node_new_child (g, "operation", "gegl:buffer-source",
+                                          "buffer", in, NULL);
+  GeglNode   *op   = gegl_node_new_child (g, "operation", OP, "path", path, NULL);
+  gfloat      out[16];
+  gchar      *e1, *e2, *e3, *e4;
+
+  gegl_node_link (src, op);
+#define RENDER()                                                          \
+  gegl_node_blit (op, 1.0, GEGL_RECTANGLE (0, 0, 4, 1), babl_format (WORK), \
+                  out, GEGL_AUTO_ROWSTRIDE, GEGL_BLIT_DEFAULT)
+  quiet_messages = TRUE;
+  RENDER ();
+  quiet_messages = FALSE;
+  gegl_node_get (op, "error", &e1, NULL);      /* before the main loop */
+  while (g_main_context_iteration (NULL, FALSE));
+  gegl_node_get (op, "error", &e2, NULL);
+  gegl_node_set (op, "error", "", NULL);
+  RENDER ();
+  while (g_main_context_iteration (NULL, FALSE));
+  gegl_node_get (op, "error", &e3, NULL);
+  g_free (write_cube ("error-prop.cube", 2, tf_swap, NULL, NULL));
+  gegl_node_set (op, "path", path, NULL);
+  RENDER ();
+  while (g_main_context_iteration (NULL, FALSE));
+  gegl_node_get (op, "error", &e4, NULL);
+#undef RENDER
+  report ("error_property_from_the_main_loop", ! e1[0] && e2[0], "%s", e2);
+  report ("error_property_comes_back_when_cleared", ! strcmp (e2, e3), "%s", e3);
+  report ("error_property_empty_when_the_file_is_good", ! e4[0], "%s", e4);
+  g_free (e1);
+  g_free (e2);
+  g_free (e3);
+  g_free (e4);
+  g_object_unref (g);
+  g_object_unref (in);
+  g_free (path);
+}
+
 /* the cache ---------------------------------------------------------------- */
 
 static void
@@ -2476,6 +2522,7 @@ main (int    argc,
   test_hald ();
   expected = n_messages;
   test_bad_files ();
+  test_error_property ();
   test_cache ();
   expected = n_messages - expected;
   test_pieces ();
