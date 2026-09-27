@@ -44,3 +44,11 @@ check = executable('check', 'tests/check.c',
 test('color-lookup', check,
   args: [modules['color-lookup'], meson.current_source_dir() / 'tests' / 'fixtures'],
   timeout: 600)
+
+# applies the operation to raw float pixels, for tests/crosscheck.sh
+executable('lut-apply', 'tests/lut-apply.c',
+  dependencies: [gegl_dep],
+  c_args: ['-DGEGL_PLUGINSDIR="@0@"'.format(
+    gegl_dep.get_variable(pkgconfig: 'pluginsdir'))],
+  install: false,
+)
