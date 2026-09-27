@@ -52,3 +52,11 @@ executable('lut-apply', 'tests/lut-apply.c',
     gegl_dep.get_variable(pkgconfig: 'pluginsdir'))],
   install: false,
 )
+
+# how long it takes on a 24 megapixel image (README): tests/bench.sh
+executable('bench', 'tests/bench.c',
+  dependencies: [gegl_dep, math_dep],
+  c_args: ['-DGEGL_PLUGINSDIR="@0@"'.format(
+    gegl_dep.get_variable(pkgconfig: 'pluginsdir'))],
+  install: false,
+)
