@@ -122,10 +122,17 @@ property_enum (out_of_range, _("Outside the LUT's range"),
                  "(usually 0 to 1): clamp them to its edge, or extend the "
                  "LUT linearly from its edge"))
 
+property_boolean (lut_problem, _("The LUT file cannot be used"), FALSE)
+  description (_("Set by the operation when the LUT file cannot be used."))
+  ui_meta ("visible", "0")
+
+/* GIMP shows it as a message box; "visible" hides the box while there is
+ * no message (GIMP 3.2 shows an empty box otherwise) */
 property_string (error, _("The LUT file cannot be used"), "")
   description (_("Why the LUT file cannot be used; the image is then left "
                  "as it is. Set by the operation."))
   ui_meta ("error", "true")
+  ui_meta ("visible", "lut-problem")
 
 #else
 
@@ -1503,8 +1510,12 @@ error_update_idle (gpointer data)
         }
       g_mutex_unlock (&error_mutex);
 
-      if (mine && strcmp (o->error ? o->error : "", u->error) != 0)
-        g_object_set (operation, "error", u->error, NULL);
+      if (mine && (strcmp (o->error ? o->error : "", u->error) != 0 ||
+                   o->lut_problem != (u->error[0] != '\0')))
+        g_object_set (operation,
+                      "lut-problem", u->error[0] != '\0',
+                      "error",       u->error,
+                      NULL);
       g_object_unref (operation);
     }
   return G_SOURCE_REMOVE;
@@ -1520,9 +1531,10 @@ error_update_free (gpointer data)
   g_free (u);
 }
 
-/* makes the error property say error, unless it does or will. It is
- * compared with the property itself, so that a message that someone
- * cleared (a plug-in that sets all the settings again) comes back */
+/* makes the error property say error (and lut-problem say whether there
+ * is one), unless they do or will. They are compared with the properties
+ * themselves, so that a message that someone cleared (a plug-in that sets
+ * all the settings again) comes back */
 static void
 report_error (GeglOperation *operation,
               State         *state,
@@ -1532,8 +1544,9 @@ report_error (GeglOperation *operation,
   ErrorUpdate    *u;
 
   g_mutex_lock (&error_mutex);
-  if (strcmp (state->pending ? state->pending : o->error ? o->error : "",
-              error) == 0)
+  if (state->pending ? strcmp (state->pending, error) == 0 :
+      strcmp (o->error ? o->error : "", error) == 0 &&
+      o->lut_problem == (error[0] != '\0'))
     {
       g_mutex_unlock (&error_mutex);
       return;

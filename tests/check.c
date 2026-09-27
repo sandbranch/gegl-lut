@@ -2110,6 +2110,12 @@ test_error_property (void)
   gegl_node_get (op, "error", &e1, NULL);      /* before the main loop */
   while (g_main_context_iteration (NULL, FALSE));
   gegl_node_get (op, "error", &e2, NULL);
+  {
+    gboolean problem;
+
+    gegl_node_get (op, "lut-problem", &problem, NULL);
+    report ("lut_problem_property_set_with_the_error", problem, NULL);
+  }
   gegl_node_set (op, "error", "", NULL);
   RENDER ();
   while (g_main_context_iteration (NULL, FALSE));
@@ -2120,6 +2126,12 @@ test_error_property (void)
   while (g_main_context_iteration (NULL, FALSE));
   gegl_node_get (op, "error", &e4, NULL);
 #undef RENDER
+  {
+    gboolean problem;
+
+    gegl_node_get (op, "lut-problem", &problem, NULL);
+    report ("lut_problem_property_follows_the_error", ! problem, NULL);
+  }
   report ("error_property_from_the_main_loop", ! e1[0] && e2[0], "%s", e2);
   report ("error_property_comes_back_when_cleared", ! strcmp (e2, e3), "%s", e3);
   report ("error_property_empty_when_the_file_is_good", ! e4[0], "%s", e4);
