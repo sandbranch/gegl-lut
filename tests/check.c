@@ -1641,16 +1641,18 @@ tf_gamma_on_mesh (const gdouble *in, gdouble *out, gpointer data)
   for (c = 0; c < 3; c++)
     {
       gdouble x = CLAMP (in[c], 0, 1);
+      gdouble a, b, f, ya, yb;
 
-      for (i = 0; i < 2 && x > mesh[i + 1] / 1023.0; i++);
-      {
-        gdouble a = mesh[i] / 1023.0, b = mesh[i + 1] / 1023.0;
-        gdouble f = (x - a) / (b - a);
-        gdouble ya = floor (pow (a, 2.2) * 65535 + 0.5) / 65535;
-        gdouble yb = floor (pow (b, 2.2) * 65535 + 0.5) / 65535;
-
-        out[c] = ya * (1 - f) + yb * f;
-      }
+      /* the cell of x: the last whose start is below it */
+      i = 0;
+      while (i < 2 && x > mesh[i + 1] / 1023.0)
+        i++;
+      a  = mesh[i] / 1023.0;
+      b  = mesh[i + 1] / 1023.0;
+      f  = (x - a) / (b - a);
+      ya = floor (pow (a, 2.2) * 65535 + 0.5) / 65535;
+      yb = floor (pow (b, 2.2) * 65535 + 0.5) / 65535;
+      out[c] = ya * (1 - f) + yb * f;
     }
 }
 
